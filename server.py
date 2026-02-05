@@ -3,40 +3,44 @@ import io
 import numpy as np
 import librosa
 from fastapi import FastAPI, HTTPException, Header
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 app = FastAPI(title="Audio AI Detection Server")
 
-# ✅ API KEY (defined correctly at module level)
+# 🔓 CORS (allow all)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 🔑 API KEY
 API_KEY = "jhvbbchjbvchbhjvbdsbhjbvhjbv"
 
 
-# ---------- Request Schema ----------
 class AudioRequest(BaseModel):
     audio_base64: str
 
 
-# ---------- Response Schema ----------
 class AudioResponse(BaseModel):
     confidence_score: float
     isAI: bool
     explanation: str
 
 
-# ---------- Utility: Decode Base64 MP3 ----------
 def decode_mp3_base64(audio_base64: str):
     try:
         audio_bytes = base64.b64decode(audio_base64)
         audio_buffer = io.BytesIO(audio_bytes)
-
         waveform, sr = librosa.load(audio_buffer, sr=None)
         return waveform, sr
-
     except Exception as e:
         raise ValueError(f"Invalid audio data: {e}")
 
 
-# ---------- Dummy AI Detection Logic ----------
 def detect_ai_voice(waveform: np.ndarray, sr: int):
     spectral_centroid = np.mean(
         librosa.feature.spectral_centroid(y=waveform, sr=sr)
@@ -62,7 +66,6 @@ def detect_ai_voice(waveform: np.ndarray, sr: int):
     return confidence_score, is_ai, explanation
 
 
-# ---------- API Endpoint ----------
 @app.post("/analyze-audio", response_model=AudioResponse)
 def analyze_audio(
     request: AudioRequest,
@@ -71,11 +74,7 @@ def analyze_audio(
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
-    try:
-        waveform, sr = decode_mp3_base64(request.audio_base64)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
+    waveform, sr = decode_mp3_base64(request.audio_base64)
     confidence_score, is_ai, explanation = detect_ai_voice(waveform, sr)
 
     return AudioResponse(
@@ -85,7 +84,6 @@ def analyze_audio(
     )
 
 
-# ---------- Health Check ----------
 @app.get("/health")
 def health():
     return {"status": "ok"}
