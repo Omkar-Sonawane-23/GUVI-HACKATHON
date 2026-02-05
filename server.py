@@ -6,9 +6,10 @@ from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+# ----------------- APP -----------------
 app = FastAPI(title="Audio AI Detection Server")
 
-# 🔓 CORS (allow all)
+# ----------------- CORS -----------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,12 +18,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🔑 API KEY
+# ----------------- API KEY -----------------
 API_KEY = "jhvbbchjbvchbhjvbdsbhjbvhjbv"
 
-
+# ----------------- SCHEMAS -----------------
 class AudioRequest(BaseModel):
-    audio_base64: str
+    audioBase64: str
 
 
 class AudioResponse(BaseModel):
@@ -31,6 +32,7 @@ class AudioResponse(BaseModel):
     explanation: str
 
 
+# ----------------- UTILS -----------------
 def decode_mp3_base64(audio_base64: str):
     try:
         audio_bytes = base64.b64decode(audio_base64)
@@ -41,6 +43,7 @@ def decode_mp3_base64(audio_base64: str):
         raise ValueError(f"Invalid audio data: {e}")
 
 
+# ----------------- AI DETECTION (DEMO) -----------------
 def detect_ai_voice(waveform: np.ndarray, sr: int):
     spectral_centroid = np.mean(
         librosa.feature.spectral_centroid(y=waveform, sr=sr)
@@ -66,6 +69,7 @@ def detect_ai_voice(waveform: np.ndarray, sr: int):
     return confidence_score, is_ai, explanation
 
 
+# ----------------- API ENDPOINT -----------------
 @app.post("/analyze-audio", response_model=AudioResponse)
 def analyze_audio(
     request: AudioRequest,
@@ -74,7 +78,11 @@ def analyze_audio(
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
-    waveform, sr = decode_mp3_base64(request.audio_base64)
+    try:
+        waveform, sr = decode_mp3_base64(request.audioBase64)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     confidence_score, is_ai, explanation = detect_ai_voice(waveform, sr)
 
     return AudioResponse(
@@ -84,6 +92,7 @@ def analyze_audio(
     )
 
 
+# ----------------- HEALTH -----------------
 @app.get("/health")
 def health():
     return {"status": "ok"}
